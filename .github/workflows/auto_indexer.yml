@@ -1,0 +1,75 @@
+name: Auto Indexer Robot 🤖
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  add-link-and-build:
+    if: contains(github.event.issue.title, 'Add URL:')
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v3
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+
+      - name: 🔗 Extract URL & Update sites.txt
+        id: extract_url
+        shell: python
+        run: |
+          import os
+          import re
+
+          issue_body = os.environ['ISSUE_BODY']
+          # Find URL in body (simple regex)
+          urls = re.findall(r'(https?://[^\s]+)', issue_body)
+          
+          if urls:
+              new_url = urls[0]
+              print(f"Found URL: {new_url}")
+              
+              with open('sites.txt', 'a') as f:
+                  f.write(f"\n{new_url}")
+              
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+                  print(f"url_added=true", file=fh)
+          else:
+              print("No URL found")
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+                  print(f"url_added=false", file=fh)
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+
+      - name: 🕷️ Run Scraper & Rebuild Database
+        if: steps.extract_url.outputs.url_added == 'true'
+        run: |
+          python build_db.py
+
+      - name: 💾 Commit & Push Changes
+        if: steps.extract_url.outputs.url_added == 'true'
+        run: |
+          git config --global user.name 'GOODGLE Bot'
+          git config --global user.email 'bot@goodgle.com'
+          git add sites.txt database.json.gz
+          git commit -m "🤖 Auto-indexed: New URL added from Issue #${{ github.event.issue.number }}"
+          git pull --rebase origin main
+          git push
+
+      - name: ✅ Close Issue
+        if: steps.extract_url.outputs.url_added == 'true'
+        uses: peter-evans/close-issue@v3
+        with:
+          comment: "✅ **Success!** The URL has been indexed by the GOODGLE Robot. The search engine will update in ~1 minute."
