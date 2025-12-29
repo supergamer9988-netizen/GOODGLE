@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Immortal HDC Search</title>
+    <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+    <style>
+        body {
+            font-family: monospace;
+            background: #0d1117;
+            color: #c9d1d9;
+            text-align: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #58a6ff;
+        }
+
+        .box {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            background: #161b22;
+        }
+
+        input {
+            width: 70%;
+            padding: 10px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #238636;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            background: #333;
+        }
+
+        #status {
+            font-size: 12px;
+            color: #8b949e;
+            margin-top: 5px;
+        }
+
+        .result {
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+            padding: 10px 0;
+        }
+
+        .result a {
+            color: #58a6ff;
+            text-decoration: none;
+            font-size: 18px;
+        }
+
+        .source-badge {
+            font-size: 10px;
+            background: #1f6feb;
+            color: white;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>🧠 Immortal Euler Search</h1>
+    <p>Powered by HDC + Archive.org + GZIP Compression</p>
+
+    <div class="box">
+        <div id="status">⏳ Connecting to Neural Network...</div>
+        <div style="background:#333; hieght:5px; width:100%; margin-top:5px;">
+            <div id="progress" style="background:#238636; height:5px; width:0%;"></div>
+        </div>
+    </div>
+
+    <div class="box">
+        <input type="text" id="searchInput" placeholder="Loading Database..." disabled>
+        <button id="searchBtn" onclick="search()" disabled>Search</button>
+    </div>
+
+    <div id="results" class="box" style="text-align: left;"></div>
+
+    <script>
+        // 🔥 สำคัญ: วางไฟล์ .torrent ไว้ที่เดียวกับไฟล์ html นี้ 🔥
+        const TORRENT_FILE = 'db_compressed.torrent';
+
+        const client = new WebTorrent();
+        let db = [];
+
+        client.add(TORRENT_FILE, function (torrent) {
+
+            torrent.on('download', function (bytes) {
+                const percent = (torrent.progress * 100).toFixed(1);
+                // เช็คว่าโหลดจากไหน (P2P หรือ Archive.org)
+                const source = torrent.numPeers > 0 ? "P2P Network" : "Archive.org (WebSeed)";
+
+                document.getElementById('status').innerHTML =
+                    `⬇️ Downloading: ${percent}% <br> <span class="source-badge">Via: ${source}</span>`;
+                document.getElementById('progress').style.width = percent + '%';
+            });
+
+            torrent.on('done', function () {
+                document.getElementById('status').innerHTML = "✅ Decompressing Data...";
+                document.getElementById('status').style.color = "#e3b341";
+
+                // อ่านไฟล์ GZIP จาก Torrent
+                torrent.files[0].getBuffer(function (err, buffer) {
+                    if (err) return console.error(err);
+                    try {
+                        // ⚡ ขั้นตอนถอดรหัส: ใช้ Pako ระเบิดไฟล์ GZIP กลับเป็น JSON Text ⚡
+                        const jsonString = pako.ungzip(buffer, { to: 'string' });
+                        db = JSON.parse(jsonString);
+
+                        console.log("Database Loaded:", db.length, "items");
+
+                        document.getElementById('status').innerHTML = "✅ Database Online!";
+                        document.getElementById('status').style.color = "#3fb950";
+
+                        // เปิดใช้งานช่องค้นหา
+                        document.getElementById('searchInput').disabled = false;
+                        document.getElementById('searchInput').placeholder = "Type to search...";
+                        document.getElementById('searchBtn').disabled = false;
+                    } catch (e) {
+                        console.error("Decompression/Parse Failed:", e);
+                        document.getElementById('status').innerHTML = "❌ Database Corrupted (Decompression Error)";
+                        document.getElementById('status').style.color = "red";
+                    }
+                });
+            });
+        });
+
+        function search() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const resDiv = document.getElementById('results');
+            resDiv.innerHTML = "";
+
+            if (!query) return;
+
+            // HDC-Like Logic: ค้นหาคำที่ตรงกัน
+            const hits = db.filter(item =>
+                (item.title && item.title.toLowerCase().includes(query)) ||
+                (item.snippet && item.snippet.toLowerCase().includes(query))
+            );
+
+            if (hits.length === 0) {
+                resDiv.innerHTML = "<p>No resonance found.</p>";
+                return;
+            }
+
+            hits.forEach(hit => {
+                resDiv.innerHTML += `
+                    <div class="result">
+                        <a href="${hit.url}" target="_blank">${hit.title}</a>
+                        <p>${hit.snippet}...</p>
+                    </div>
+                `;
+            });
+        }
+    </script>
+</body>
+
+</html>
