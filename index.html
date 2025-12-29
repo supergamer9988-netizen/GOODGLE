@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Immortal HDC Search</title>
+    <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+    <style>
+        body {
+            font-family: monospace;
+            background: #0d1117;
+            color: #c9d1d9;
+            text-align: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #58a6ff;
+        }
+
+        .box {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            background: #161b22;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            color: white;
+            box-sizing: border-box;
+        }
+
+        /* Autocomplete Styles */
+        .search-container {
+            position: relative;
+            width: 70%;
+            margin: 0 auto;
+        }
+
+        .suggestion-box {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-top: none;
+            z-index: 1000;
+            text-align: left;
+            display: none;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .suggestion-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #21262d;
+        }
+
+        .suggestion-item:hover {
+            background: #1f2428;
+            color: #58a6ff;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #238636;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            background: #333;
+        }
+
+        #status {
+            font-size: 12px;
+            color: #8b949e;
+            margin-top: 5px;
+        }
+
+        .result {
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+            padding: 10px 0;
+        }
+
+        .result a {
+            color: #58a6ff;
+            text-decoration: none;
+            font-size: 18px;
+        }
+
+        .source-badge {
+            font-size: 10px;
+            background: #1f6feb;
+            color: white;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1 style="font-size: 3em; margin-bottom: 0;">GOODGLE</h1>
+    <p style="color: #8b949e;">Powered by HDC + GZIP + WEB3 Search Engine</p>
+    <!-- GOODGLE V3.0 FORCE UPDATE -->
+
+    <div class="box">
+        <div id="status">⏳ Connecting to Neural Network...</div>
+        <div style="background:#333; height:5px; width:100%; margin-top:5px;">
+            <div id="progress" style="background:#238636; height:5px; width:0%;"></div>
+        </div>
+    </div>
+
+    <div class="box">
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Loading Database..." disabled autocomplete="off">
+            <div id="suggestionBox" class="suggestion-box"></div>
+        </div>
+        <button id="searchBtn" onclick="search()" disabled style="margin-top: 10px;">Search</button>
+        <button onclick="submitLink()" style="margin-top: 10px; background: #1f6feb; float: right;">➕ Add Link</button>
+    </div>
+
+    <div id="results" class="box" style="text-align: left;"></div>
+
+    <script>
+        // 🔥 Multi-Source Loading System (GitHub + Archive.org + P2P) 🔥
+        const GITHUB_URL = "./database.json.gz?v=" + new Date().getTime();
+        const ARCHIVE_URL = "https://archive.org/download/database.json_202512/database.json.gz";
+        const MAGNET_LINK = 'magnet:?xt=urn:btih:294943fe8bc6f0f7ba431696c25c6e2bcd51d003&dn=database.json.gz&ws=https%3A%2F%2Farchive.org%2Fdownload%2Fdatabase.json_202512%2Fdatabase.json.gz';
+
+        let db = [];
+        let loaded = false;
+
+        // 🚀 1. เริ่มต้นโหลด (Chain Strategy)
+        console.log("🚀 Starting Multi-Source Download...");
+        document.getElementById('status').innerHTML = "🚀 Checking GitHub Database...";
+        document.getElementById('progress').style.width = '30%';
+
+        // Step 1: GitHub
+        fetch(GITHUB_URL)
+            .then(res => {
+                if (!res.ok) throw new Error("GitHub Missing");
+                return res.arrayBuffer();
+            })
+            .then(buffer => processData(buffer, "GitHub Cloud"))
+            .catch(err => {
+                console.warn("GitHub Failed, Switching to Archive.org...", err);
+                document.getElementById('status').innerHTML = "⚠️ GitHub unreachable. Trying Archive.org...";
+                document.getElementById('progress').style.width = '60%';
+
+                // Step 2: Archive.org
+                return fetch(ARCHIVE_URL)
+                    .then(res => {
+                        if (!res.ok) throw new Error("Archive.org Missing");
+                        return res.arrayBuffer();
+                    })
+                    .then(buffer => processData(buffer, "Archive.org Backup"));
+            })
+            .catch(err => {
+                // Step 3: P2P Swarm (Final Resort)
+                console.warn("All HTTP Failed, activating P2P Swarm...", err);
+                document.getElementById('status').innerHTML = "⚠️ All Clouds unreachable. Activating P2P Swarm...";
+                startP2P();
+            });
+
+
+        // ฟังก์ชันสำรอง: โหลดผ่าน Torrent
+        function startP2P() {
+            const client = new WebTorrent();
+            client.add(MAGNET_LINK, function (torrent) {
+                torrent.on('download', function (bytes) {
+                    if (loaded) return;
+                    const percent = (torrent.progress * 100).toFixed(1);
+                    document.getElementById('status').innerHTML = `🛡️ Downloading via P2P Backup: ${percent}%`;
+                    document.getElementById('progress').style.width = percent + '%';
+                });
+                torrent.on('done', function () {
+                    if (loaded) return;
+                    console.log("P2P Backup Finished!");
+                    torrent.files[0].getBuffer(function (err, buffer) {
+                        if (!err) {
+                            processData(buffer, "P2P Network");
+                        } else {
+                            console.error("P2P Backup Error:", err);
+                            document.getElementById('status').innerHTML = "❌ Error: Could not load via P2P Backup.";
+                            document.getElementById('status').style.color = "red";
+                        }
+                    });
+                });
+            });
+        }
+
+        function processData(buffer, source) {
+            if (loaded) return;
+            loaded = true;
+
+            try {
+                document.getElementById('status').innerHTML = `✅ Decompressing data from ${source}...`;
+                document.getElementById('status').style.color = "#e3b341";
+
+                const jsonString = pako.ungzip(buffer, { to: 'string' });
+                db = JSON.parse(jsonString);
+
+                console.log("Database Loaded:", db.length, "items");
+                document.getElementById('status').innerHTML = `✅ Ready! (${source})`;
+                document.getElementById('status').style.color = "#3fb950";
+                document.getElementById('progress').style.width = '100%';
+
+                document.getElementById('searchInput').disabled = false;
+                document.getElementById('searchInput').placeholder = "Type to search...";
+                document.getElementById('searchBtn').disabled = false;
+            } catch (e) {
+                console.error("Decompression Error:", e);
+                document.getElementById('status').innerHTML = "❌ Data Corrupted";
+            }
+        }
+
+        // 3. ฟังก์ชัน Search & Autocomplete
+        const searchInput = document.getElementById('searchInput');
+        const suggestionBox = document.getElementById('suggestionBox');
+
+        // Event: กด Enter เพื่อค้นหา
+        searchInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                search();
+                suggestionBox.style.display = 'none';
+            }
+        });
+
+        // Event: พิมพ์เพื่อแสดงคำแนะนำ (Autocomplete)
+        searchInput.addEventListener('input', function () {
+            const query = this.value.toLowerCase();
+            suggestionBox.innerHTML = '';
+
+            if (!query || db.length === 0) {
+                suggestionBox.style.display = 'none';
+                return;
+            }
+
+            // ค้นหา title ที่ตรงกับ query (เอาแค่ 5 อันดับแรก)
+            const matches = db.filter(item =>
+                item.title && item.title.toLowerCase().includes(query)
+            ).slice(0, 5);
+
+            if (matches.length > 0) {
+                matches.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+
+                    // ไฮไลท์คำที่ตรง
+                    const regex = new RegExp(`(${query})`, 'gi');
+                    const text = item.title.replace(regex, '<span style="color:#4db8ff; font-weight:bold;">$1</span>');
+
+                    div.innerHTML = text; // ใช้ innerHTML เพื่อแสดงไฮไลท์
+
+                    div.onclick = function () {
+                        searchInput.value = item.title;
+                        search();
+                        suggestionBox.style.display = 'none';
+                    };
+                    suggestionBox.appendChild(div);
+                });
+                suggestionBox.style.display = 'block';
+            } else {
+                suggestionBox.style.display = 'none';
+            }
+        });
+
+        // ซ่อนกล่องแนะนำเมื่อคลิกที่อื่น
+        document.addEventListener('click', function (e) {
+            if (e.target !== searchInput && e.target !== suggestionBox) {
+                suggestionBox.style.display = 'none';
+            }
+        });
+
+        // 🔥 โหลดข้อมูลจาก Local Memory (ที่ User เพิ่งเพิ่ม)
+        function getLocalDB() {
+            const localData = localStorage.getItem('goodgle_local_memory');
+            return localData ? JSON.parse(localData) : [];
+        }
+
+        // 🔥 บันทึกข้อมูลลง Local Memory
+        function saveToLocalDB(title, url) {
+            const local = getLocalDB();
+            local.push({ title: title, url: url, snippet: "🚀 Added by you (Processing in Hive Mind...)" });
+            localStorage.setItem('goodgle_local_memory', JSON.stringify(local));
+        }
+
+        function search() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const resDiv = document.getElementById('results');
+            if (suggestionBox) suggestionBox.style.display = 'none'; // ซ่อนกล่องเมื่อกดปุ่มค้นหา
+            resDiv.innerHTML = "";
+
+            if (!query) return;
+
+            // HDC-Like Logic: ค้นหาคำที่ตรงกัน
+            // HDC-Like Logic: ค้นหาคำที่ตรงกัน (รวม Global DB + Local Memory)
+            const allData = [...getLocalDB(), ...db]; // ผสานความทรงจำส่วนตัว + ส่วนรวม
+
+            const hits = allData.filter(item =>
+                (item.title && item.title.toLowerCase().includes(query)) ||
+                (item.snippet && item.snippet.toLowerCase().includes(query))
+            );
+
+            if (hits.length === 0) {
+                resDiv.innerHTML = "<p>No resonance found.</p>";
+                return;
+            }
+
+            hits.forEach(hit => {
+                resDiv.innerHTML += `
+                    <div class="result">
+                        <a href="${hit.url}" target="_blank">${hit.title}</a>
+                        <p>${hit.snippet}...</p>
+                    </div>
+                `;
+            });
+        }
+        function submitLink() {
+            let url = prompt("Enter the URL you want to add to GOODGLE:");
+            if (url) {
+                // 🛠️ Auto-Fix: เติม https:// ให้ถ้า User ลืมใส่
+                if (!url.match(/^https?:\/\//i)) {
+                    url = 'https://' + url;
+                }
+
+                // 1. บันทึกลงความทรงจำเครื่องทันที (Instant Resonance)
+                saveToLocalDB("🔗 New Node: " + url, url);
+                alert("✅ Added to Local Memory! You can search for it immediately.");
+
+                // 2. ส่งไปให้ Hive Mind (GitHub) ประมวลผลถาวร
+                const issueTitle = encodeURIComponent("Add URL: " + url);
+                const issueBody = encodeURIComponent("Please add this URL to the Immortal Database:\n\n" + url);
+                window.open(`https://github.com/supergamer9988-netizen/GOODGLE/issues/new?title=${issueTitle}&body=${issueBody}`, '_blank');
+
+                // 3. รีเฟรชผลการค้นหาทันที
+                search();
+            }
+        }
+    </script>
+</body>
+
+</html>
