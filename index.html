@@ -30,12 +30,45 @@
         }
 
         input {
-            width: 70%;
+            width: 100%;
             padding: 10px;
             background: #0d1117;
             border: 1px solid #30363d;
             color: white;
-            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+
+        /* Autocomplete Styles */
+        .search-container {
+            position: relative;
+            width: 70%;
+            margin: 0 auto;
+        }
+
+        .suggestion-box {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-top: none;
+            z-index: 1000;
+            text-align: left;
+            display: none;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .suggestion-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #21262d;
+        }
+
+        .suggestion-item:hover {
+            background: #1f2428;
+            color: #58a6ff;
         }
 
         button {
@@ -91,8 +124,11 @@
     </div>
 
     <div class="box">
-        <input type="text" id="searchInput" placeholder="Loading Database..." disabled>
-        <button id="searchBtn" onclick="search()" disabled>Search</button>
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Loading Database..." disabled autocomplete="off">
+            <div id="suggestionBox" class="suggestion-box"></div>
+        </div>
+        <button id="searchBtn" onclick="search()" disabled style="margin-top: 10px;">Search</button>
     </div>
 
     <div id="results" class="box" style="text-align: left;"></div>
@@ -177,9 +213,68 @@
             }
         }
 
+        // 3. ฟังก์ชัน Search & Autocomplete
+        const searchInput = document.getElementById('searchInput');
+        const suggestionBox = document.getElementById('suggestionBox');
+
+        // Event: กด Enter เพื่อค้นหา
+        searchInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                search();
+                suggestionBox.style.display = 'none';
+            }
+        });
+
+        // Event: พิมพ์เพื่อแสดงคำแนะนำ (Autocomplete)
+        searchInput.addEventListener('input', function () {
+            const query = this.value.toLowerCase();
+            suggestionBox.innerHTML = '';
+
+            if (!query || db.length === 0) {
+                suggestionBox.style.display = 'none';
+                return;
+            }
+
+            // ค้นหา title ที่ตรงกับ query (เอาแค่ 5 อันดับแรก)
+            const matches = db.filter(item =>
+                item.title && item.title.toLowerCase().includes(query)
+            ).slice(0, 5);
+
+            if (matches.length > 0) {
+                matches.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+
+                    // ไฮไลท์คำที่ตรง
+                    const regex = new RegExp(`(${query})`, 'gi');
+                    const text = item.title.replace(regex, '<span style="color:#4db8ff; font-weight:bold;">$1</span>');
+
+                    div.innerHTML = text; // ใช้ innerHTML เพื่อแสดงไฮไลท์
+
+                    div.onclick = function () {
+                        searchInput.value = item.title;
+                        search();
+                        suggestionBox.style.display = 'none';
+                    };
+                    suggestionBox.appendChild(div);
+                });
+                suggestionBox.style.display = 'block';
+            } else {
+                suggestionBox.style.display = 'none';
+            }
+        });
+
+        // ซ่อนกล่องแนะนำเมื่อคลิกที่อื่น
+        document.addEventListener('click', function (e) {
+            if (e.target !== searchInput && e.target !== suggestionBox) {
+                suggestionBox.style.display = 'none';
+            }
+        });
+
         function search() {
             const query = document.getElementById('searchInput').value.toLowerCase();
             const resDiv = document.getElementById('results');
+            if (suggestionBox) suggestionBox.style.display = 'none'; // ซ่อนกล่องเมื่อกดปุ่มค้นหา
             resDiv.innerHTML = "";
 
             if (!query) return;
